@@ -21,6 +21,10 @@ app.use((error, req, res, next) => {
   });
 });
 
+app.get('/', (req,res)=>{
+  res.send('Home page')
+})
+
 const start = async () => {
   try {
     app.listen(PORT, async () => {

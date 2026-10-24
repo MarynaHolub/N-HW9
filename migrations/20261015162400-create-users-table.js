@@ -1,7 +1,7 @@
 'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
-module.exports = {
+export default {
   async up(queryInterface, Sequelize) {
     /**
      * Add altering commands here.
@@ -43,7 +43,7 @@ module.exports = {
           defaultValue: 'user',
         },
         mustChangePassword: {
-          type: DataTypes.BOOLEAN,
+          type: Sequelize.BOOLEAN,
           allowNull: false,
           defaultValue: false,
         },

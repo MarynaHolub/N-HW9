@@ -4,6 +4,11 @@ import bcrypt from 'bcrypt';
 import mustChangePassword from '../middlewares/mustChangePassword.js';
 import authenticate from '../middlewares/authenticate.js';
 import authorizeAdmin from '../middlewares/authorizeAdmin.js';
+import jwt from 'jsonwebtoken';
+import 'dotenv/config'
+
+const JWT_SECRET = process.env.JWT_SECRET
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h'
 
 const router = express.Router(); // создаёт отдельный роутер для маршрутов, связанных с User
 
@@ -53,7 +58,6 @@ router.post('/register', async (req, res, next) => {
       username: username.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      role: 'admin',
     });
 
     res.status(201).json({
@@ -68,6 +72,67 @@ router.post('/register', async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+});
+
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body ?? {};
+
+  if (!email || !password) {
+    return res.status(400).json({
+      message: 'Укажите email и пароль',
+    });
+  }
+
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await User.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    if (!existingUser) {
+      return res.status(401).json({
+        message: 'Неверный email или пароль', // не сообщаем что не найден пользователь
+      });
+    }
+
+    // console.log('password:', typeof password);
+    // console.log('existingUser.password:', typeof existingUser.password);
+    // console.log('Хэш пароля:', existingUser.password);
+
+    // Сравним введённый пароль с хэшированным паролем в массиве
+    const isMatch = await bcrypt.compare(password, existingUser.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        message: 'Неверный email или пароль',
+      });
+    }
+
+    // генерируем токен
+    const token = jwt.sign(
+      {
+        id: existingUser.id,
+        email: existingUser.email, // на практике конфиденциальные, секретные данные в полезной нагрузке не отправляем!
+        role: existingUser.role,
+      },
+      JWT_SECRET,
+      {
+        expiresIn: JWT_EXPIRES_IN,
+      },
+    );
+
+   
+    res.json({
+      // Отправим токен клиенту
+      token,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      message: 'Ошибка сервера при аутентификации',
+    });
   }
 });
 
