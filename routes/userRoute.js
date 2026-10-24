@@ -176,7 +176,7 @@ router.post('/change-password', authenticate, async (req, res, next) => {
   }
 });
 
-router.post('/delete-account', authenticate, async (req, res, next) => {
+router.delete('/delete-account', authenticate, async (req, res, next) => {
   // authenticate проверяет JWT и записывает пользователя в req.user
   try {
     const { password } = req.body ?? {};
