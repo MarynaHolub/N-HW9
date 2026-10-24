@@ -27,14 +27,17 @@ app.get('/', (req,res)=>{
 
 const start = async () => {
   try {
-    app.listen(PORT, async () => {
-      // await User.sync({ force: true });
-      await sequelize.authenticate();
-      console.log('Connection to the database has been successfully');
-      console.log(`Server running at the http://localhost:${PORT}`);
+    // сначала проверяем подключение к базе
+    await sequelize.authenticate();
+    console.log('Connection to the database has been established successfully');
+
+    // и только потом запускаем сервер
+    app.listen(PORT, () => {
+      console.log(`Server running at http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error('Unable to connect to the database', error.message);
+    console.error('Unable to connect to the database:', error.message);
+    process.exitCode = 1;
   }
 };
 
