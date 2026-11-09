@@ -1,10 +1,12 @@
 import jwt from 'jsonwebtoken';
 
+// 1. Проверяет JWT, заполняет req.user
 const authenticate = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;  // получает заголовок Authorization
+    const authHeader = req.headers.authorization; // получает заголовок Authorization
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {   // Bearer указывает, что в запросе передаётся токен доступа
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // Bearer указывает, что в запросе передаётся токен доступа
       return res.status(401).json({
         message: 'Необходима авторизация',
       });
@@ -12,9 +14,9 @@ const authenticate = (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);   // проверяет подпись токена и срок его действия
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); // проверяет подпись токена и срок его действия
 
-    req.user = decoded;   // сохраняет данные из токена в объект запроса
+    req.user = decoded; // сохраняет данные из токена в объект запроса
 
     next();
   } catch (error) {

@@ -5,10 +5,11 @@ import mustChangePassword from '../middlewares/mustChangePassword.js';
 import authenticate from '../middlewares/authenticate.js';
 import authorizeAdmin from '../middlewares/authorizeAdmin.js';
 import jwt from 'jsonwebtoken';
-import 'dotenv/config'
+import 'dotenv/config';
+import authenticatePasswordChange from '../middlewares/authenticatePasswordChange.js';
 
-const JWT_SECRET = process.env.JWT_SECRET
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h'
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
 const router = express.Router(); // создаёт отдельный роутер для маршрутов, связанных с User
 
@@ -75,6 +76,7 @@ router.post('/register', async (req, res, next) => {
   }
 });
 
+// Нужно либо добавить mustChangePassword в jwt.sign, либо в middleware брать пользователя из базы через User.findByPk(req.user.id) и проверять флаг там. По условию проверка должна выполняться при входе, поэтому в /login стоит сразу проверить existingUser.mustChangePassword и вернуть перенаправление на смену пароля.
 router.post('/login', async (req, res) => {
   const { email, password } = req.body ?? {};
 
@@ -86,20 +88,19 @@ router.post('/login', async (req, res) => {
 
   try {
     const normalizedEmail = email.trim().toLowerCase();
+    console.log(1);
 
     const existingUser = await User.findOne({
       where: { email: normalizedEmail },
     });
+
+    console.log(2);
 
     if (!existingUser) {
       return res.status(401).json({
         message: 'Неверный email или пароль', // не сообщаем что не найден пользователь
       });
     }
-
-    // console.log('password:', typeof password);
-    // console.log('existingUser.password:', typeof existingUser.password);
-    // console.log('Хэш пароля:', existingUser.password);
 
     // Сравним введённый пароль с хэшированным паролем в массиве
     const isMatch = await bcrypt.compare(password, existingUser.password);
@@ -110,7 +111,28 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // генерируем токен
+    // Проверяем необходимость смены пароля, если надо - выдаем временный пароль
+    if (existingUser.mustChangePassword) {
+      const tempToken = jwt.sign(
+        {
+          id: existingUser.id,
+          purpose: 'password-change',
+        },
+        JWT_SECRET,
+        {
+          expiresIn: '10m',
+        },
+      );
+
+      return res.status(403).json({
+        message: 'Необходимо сменить пароль',
+        redirect: '/change-password',
+        mustChangePassword: true,
+        tempToken,
+      });
+    }
+
+    // Только если смена пароля не требуется — выдаём JWT
     const token = jwt.sign(
       {
         id: existingUser.id,
@@ -123,7 +145,6 @@ router.post('/login', async (req, res) => {
       },
     );
 
-   
     res.json({
       // Отправим токен клиенту
       token,
@@ -136,11 +157,30 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get('/profile', authenticate, mustChangePassword, (req, res) => {
-  res.json({ message: 'Профиль пользователя' });
+router.get('/profile', authenticate, mustChangePassword, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Пользователь не найден',
+      });
+    }
+
+    res.json({
+      message: 'Профиль пользователя',
+      user,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Ошибка получения профиля',
+    });
+  }
 });
 
-router.post('/change-password', authenticate, async (req, res, next) => {
+router.post('/change-password', authenticatePasswordChange, async (req, res, next) => {
   // authenticate - авторизация
   try {
     const { newPassword } = req.body ?? {};
